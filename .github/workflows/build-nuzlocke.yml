@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'nuzlocke-build/**'
+      - 'nuzlocke-build/nuzlocke.patch'
+      - 'nuzlocke-build/verify_inputs.py'
       - '.github/workflows/build-nuzlocke.yml'
 
 permissions:

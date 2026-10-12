@@ -1,0 +1,37 @@
+name: Test built Nuzlocke ROM
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'nuzlocke-build/emulator_checks.py'
+      - '.github/workflows/test-nuzlocke.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libretro-mgba python3-pil binutils-arm-none-eabi
+      - uses: actions/download-artifact@v4
+        with:
+          name: Pokemon-Emerald-Nuzlocke
+          run-id: 38246785066
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: built-rom
+      - name: Prepare pinned reference definitions
+        run: |
+          git clone https://github.com/pret/pokeemerald.git /tmp/pokeemerald
+          git -C /tmp/pokeemerald checkout 731ad5bfd6e6f265508d0efcca0ba42f9dcf5881
+          cp built-rom/*.elf /tmp/pokeemerald/pokeemerald.elf
+          cp built-rom/*.gba /tmp/pokeemerald/pokeemerald.gba
+      - name: Check compiled rules in mGBA
+        run: python3 -u nuzlocke-build/emulator_checks.py /tmp/pokeemerald emulator-results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Nuzlocke-emulator-checks
+          path: emulator-results/
+          retention-days: 30

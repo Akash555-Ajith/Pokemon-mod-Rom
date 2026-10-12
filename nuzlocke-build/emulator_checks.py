@@ -140,7 +140,7 @@ def ptr(address,size=1):
 def read(address,size): return C.string_at(ptr(address,size),size)
 def write(address,data): C.memmove(ptr(address,len(data)),data,len(data))
 def u32(address): return struct.unpack('<I',read(address,4))[0]
-def w32(address,value): write(address,struct.pack('<I',value))
+def w32(address,value): write(address,struct.pack('<I',value & 0xffffffff))
 def run(count):
     for _ in range(count): core.retro_run()
 def screenshot(name):
@@ -206,7 +206,7 @@ def enum_values(path):
     return result
 mon_data=enum_values('include/pokemon.h')
 items=enum_values('include/constants/items.h')
-def getmon(index,field): return call('GetMonData',party+100*index,mon_data['MON_DATA_'+field],0)
+def getmon(index,field): return call('GetMonData3',party+100*index,mon_data['MON_DATA_'+field],0)
 def setmon(index,field,value):
     w32(scratch,value)
     call('SetMonData',party+100*index,mon_data['MON_DATA_'+field],scratch)
