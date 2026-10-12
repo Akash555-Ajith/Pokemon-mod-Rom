@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential binutils-arm-none-eabi libpng-dev
+        run: sudo apt-get update && sudo apt-get install -y build-essential binutils-arm-none-eabi libpng-dev libretro-mgba python3-pil
       - name: Fetch pinned Emerald source and compiler
         run: |
           git clone https://github.com/pret/pokeemerald.git /tmp/pokeemerald
@@ -38,6 +38,15 @@ jobs:
       - name: Compile custom ROM
         working-directory: /tmp/pokeemerald
         run: make -j2
+      - name: Check compiled rules in mGBA
+        run: python3 -u nuzlocke-build/emulator_checks.py /tmp/pokeemerald emulator-results
+      - name: Upload emulator diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nuzlocke-emulator-checks
+          path: emulator-results/
+          retention-days: 30
       - name: Package ROM and build symbols
         run: |
           mkdir -p output
