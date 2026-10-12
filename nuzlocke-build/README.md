@@ -14,7 +14,15 @@ Use a new game and a new save filename. Autosaving happens after encounters/batt
 
 ## Build and validation status
 
-Source implementation prepared; compilation and emulator testing are pending. Do not treat this as a verified playable release yet. Windows Application Control blocked the local compiler. The accompanying GitHub Actions workflow builds in Ubuntu, first verifying that the unmodified source produces an exact original Emerald ROM, then applying the patch and building the custom ROM.
+The ROM compiled successfully in GitHub Actions on Ubuntu after Windows Application Control blocked the local compiler. The unmodified source first reproduced the exact original Emerald ROM. Source checks confirmed original trainer data, all eight gym caps, and 112 standard hidden-item events.
+
+The built ROM passed 36 automated checks executing its compiled functions in mGBA, including encounter limits, level caps, permanent removal, ball-only shops, Set mode, hidden-item markers, save creation, full save erasure, and return to the rendered starting map. These targeted checks are not a complete story playthrough or a Visual Boy Advance compatibility test.
+
+Build: https://github.com/Akash555-Ajith/Pokemon-mod-Rom/actions/runs/38246785066
+
+Emulator checks: https://github.com/Akash555-Ajith/Pokemon-mod-Rom/actions/runs/38249171216
+
+ROM SHA-256: `0f3edd5b48802815bc9dc0a9f5d57dfc55979ce6b3b9c644ea2354eae33823e9`
 
 The workflow only uploads a downloadable build artifact. It does not overwrite the repository's existing ROMs or push generated files back into the repository.
 
