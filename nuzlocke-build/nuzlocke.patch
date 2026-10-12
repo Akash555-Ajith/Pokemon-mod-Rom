@@ -1,0 +1,732 @@
+diff --git a/include/nuzlocke.h b/include/nuzlocke.h
+new file mode 100644
+index 0000000..7421a6a
+--- /dev/null
++++ b/include/nuzlocke.h
+@@ -0,0 +1,18 @@
++#ifndef GUARD_NUZLOCKE_H
++#define GUARD_NUZLOCKE_H
++
++struct Pokemon;
++struct BoxPokemon;
++u8 NuzlockeLevelCap(void);
++u32 NuzlockeExpGain(struct Pokemon *mon, u32 gain);
++u32 NuzlockeBoxExpGain(struct BoxPokemon *mon, u32 gain);
++bool8 NuzlockeEncounterUsed(void);
++void NuzlockeUseEncounter(void);
++bool8 NuzlockeTryScriptedEncounter(void);
++bool8 NuzlockeEndBattle(void);
++bool8 NuzlockeRemoveFainted(void);
++void NuzlockeRestart(void);
++void NuzlockeFieldUpdate(void);
++void NuzlockeRequestSave(void);
++
++#endif
+diff --git a/ld_script.ld b/ld_script.ld
+index 2ec9123..0aa1ecd 100644
+--- a/ld_script.ld
++++ b/ld_script.ld
+@@ -51,6 +51,7 @@ SECTIONS {
+         src/rom_header_gf.o(.text.*);
+         src/crt0.o(.text);
+         src/main.o(.text);
++        src/nuzlocke.o(.text);
+         src/malloc.o(.text);
+         src/dma3_manager.o(.text);
+         src/gpu_regs.o(.text);
+@@ -441,6 +442,7 @@ SECTIONS {
+         src/rom_header.o(.rodata);
+         src/rom_header_gf.o(.rodata);
+         src/main.o(.rodata);
++        src/nuzlocke.o(.rodata);
+         src/bg.o(.rodata);
+         src/window.o(.rodata);
+         src/text.o(.rodata);
+diff --git a/src/battle_controller_player.c b/src/battle_controller_player.c
+index 45bf1a1..4eec0ef 100644
+--- a/src/battle_controller_player.c
++++ b/src/battle_controller_player.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "nuzlocke.h"
+ #include "battle.h"
+ #include "battle_anim.h"
+ #include "battle_arena.h"
+@@ -2727,7 +2728,7 @@ static void PlayerHandleExpUpdate(void)
+ {
+     u8 monId = gBattleBufferA[gActiveBattler][1];
+ 
+-    if (GetMonData(&gPlayerParty[monId], MON_DATA_LEVEL) >= MAX_LEVEL)
++    if (GetMonData(&gPlayerParty[monId], MON_DATA_LEVEL) >= NuzlockeLevelCap())
+     {
+         PlayerBufferExecCompleted();
+     }
+@@ -2738,7 +2739,7 @@ static void PlayerHandleExpUpdate(void)
+ 
+         LoadBattleBarGfx(1);
+         GetMonData(&gPlayerParty[monId], MON_DATA_SPECIES);  // Unused return value.
+-        expPointsToGive = T1_READ_16(&gBattleBufferA[gActiveBattler][2]);
++        expPointsToGive = NuzlockeExpGain(&gPlayerParty[monId], T1_READ_16(&gBattleBufferA[gActiveBattler][2]));
+         taskId = CreateTask(Task_GiveExpToMon, 10);
+         gTasks[taskId].tExpTask_monId = monId;
+         gTasks[taskId].tExpTask_gainedExp = expPointsToGive;
+diff --git a/src/battle_main.c b/src/battle_main.c
+index 11fc168..672b147 100644
+--- a/src/battle_main.c
++++ b/src/battle_main.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "nuzlocke.h"
+ #include "battle.h"
+ #include "battle_anim.h"
+ #include "battle_ai_script_commands.h"
+@@ -3090,7 +3091,7 @@ static void BattleStartClearSetData(void)
+         gHitMarker |= HITMARKER_NO_ANIMATIONS;
+     }
+ 
+-    gBattleScripting.battleStyle = gSaveBlock2Ptr->optionsBattleStyle;
++    gBattleScripting.battleStyle = OPTIONS_BATTLE_STYLE_SET;
+ 
+     gMultiHitCounter = 0;
+     gBattleOutcome = 0;
+@@ -5193,6 +5194,8 @@ static void TryEvolvePokemon(void)
+                 levelUpBits &= ~(gBitTable[i]);
+                 gLeveledUpInBattle = levelUpBits;
+ 
++                if (GetMonData(&gPlayerParty[i], MON_DATA_HP) == 0)
++                    continue;
+                 species = GetEvolutionTargetSpecies(&gPlayerParty[i], EVO_MODE_NORMAL, levelUpBits);
+                 if (species != SPECIES_NONE)
+                 {
+@@ -5216,6 +5219,12 @@ static void WaitForEvoSceneToFinish(void)
+ 
+ static void ReturnFromBattleToOverworld(void)
+ {
++    if (NuzlockeEndBattle())
++    {
++        NuzlockeRestart();
++        return;
++    }
++
+     if (!(gBattleTypeFlags & BATTLE_TYPE_LINK))
+     {
+         RandomlyGivePartyPokerus(gPlayerParty);
+diff --git a/src/battle_script_commands.c b/src/battle_script_commands.c
+index 3af09ec..e206da6 100644
+--- a/src/battle_script_commands.c
++++ b/src/battle_script_commands.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "nuzlocke.h"
+ #include "battle.h"
+ #include "battle_message.h"
+ #include "battle_anim.h"
+@@ -3348,7 +3349,7 @@ static void Cmd_getexp(void)
+                 gBattleScripting.getexpState = 5;
+                 gBattleMoveDamage = 0; // used for exp
+             }
+-            else if (GetMonData(&gPlayerParty[gBattleStruct->expGetterMonId], MON_DATA_LEVEL) == MAX_LEVEL)
++            else if (GetMonData(&gPlayerParty[gBattleStruct->expGetterMonId], MON_DATA_LEVEL) >= NuzlockeLevelCap())
+             {
+                 *(&gBattleStruct->sentInPokes) >>= 1;
+                 gBattleScripting.getexpState = 5;
+@@ -3396,6 +3397,8 @@ static void Cmd_getexp(void)
+                         i = STRINGID_EMPTYSTRING4;
+                     }
+ 
++                    gBattleMoveDamage = NuzlockeExpGain(&gPlayerParty[gBattleStruct->expGetterMonId], gBattleMoveDamage);
++
+                     // get exp getter battler
+                     if (gBattleTypeFlags & BATTLE_TYPE_DOUBLE)
+                     {
+diff --git a/src/battle_setup.c b/src/battle_setup.c
+index 41026de..8489faa 100644
+--- a/src/battle_setup.c
++++ b/src/battle_setup.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "nuzlocke.h"
+ #include "battle.h"
+ #include "battle_setup.h"
+ #include "battle_transition.h"
+@@ -388,6 +389,7 @@ static void CreateBattleStartTask(u8 transition, u16 song)
+ 
+ void BattleSetup_StartWildBattle(void)
+ {
++    NuzlockeUseEncounter();
+     if (GetSafariZoneFlag())
+         DoSafariBattle();
+     else
+@@ -396,6 +398,7 @@ void BattleSetup_StartWildBattle(void)
+ 
+ void BattleSetup_StartBattlePikeWildBattle(void)
+ {
++    NuzlockeUseEncounter();
+     DoBattlePikeWildBattle();
+ }
+ 
+@@ -420,6 +423,7 @@ static void DoStandardWildBattle(void)
+ 
+ void BattleSetup_StartRoamerBattle(void)
+ {
++    NuzlockeUseEncounter();
+     LockPlayerFieldControls();
+     FreezeObjectEvents();
+     StopPlayerAvatar();
+@@ -488,6 +492,8 @@ void StartWallyTutorialBattle(void)
+ 
+ void BattleSetup_StartScriptedWildBattle(void)
+ {
++    if (!NuzlockeTryScriptedEncounter())
++        return;
+     LockPlayerFieldControls();
+     gMain.savedCallback = CB2_EndScriptedWildBattle;
+     gBattleTypeFlags = 0;
+@@ -500,6 +506,8 @@ void BattleSetup_StartScriptedWildBattle(void)
+ 
+ void BattleSetup_StartLatiBattle(void)
+ {
++    if (!NuzlockeTryScriptedEncounter())
++        return;
+     LockPlayerFieldControls();
+     gMain.savedCallback = CB2_EndScriptedWildBattle;
+     gBattleTypeFlags = BATTLE_TYPE_LEGENDARY;
+@@ -512,6 +520,8 @@ void BattleSetup_StartLatiBattle(void)
+ 
+ void BattleSetup_StartLegendaryBattle(void)
+ {
++    if (!NuzlockeTryScriptedEncounter())
++        return;
+     LockPlayerFieldControls();
+     gMain.savedCallback = CB2_EndScriptedWildBattle;
+     gBattleTypeFlags = BATTLE_TYPE_LEGENDARY;
+@@ -551,6 +561,8 @@ void BattleSetup_StartLegendaryBattle(void)
+ 
+ void StartGroudonKyogreBattle(void)
+ {
++    if (!NuzlockeTryScriptedEncounter())
++        return;
+     LockPlayerFieldControls();
+     gMain.savedCallback = CB2_EndScriptedWildBattle;
+     gBattleTypeFlags = BATTLE_TYPE_LEGENDARY | BATTLE_TYPE_KYOGRE_GROUDON;
+@@ -571,6 +583,8 @@ void StartRegiBattle(void)
+     u8 transitionId;
+     u16 species;
+ 
++    if (!NuzlockeTryScriptedEncounter())
++        return;
+     LockPlayerFieldControls();
+     gMain.savedCallback = CB2_EndScriptedWildBattle;
+     gBattleTypeFlags = BATTLE_TYPE_LEGENDARY | BATTLE_TYPE_REGI;
+diff --git a/src/daycare.c b/src/daycare.c
+index ef4eaab..78010fa 100644
+--- a/src/daycare.c
++++ b/src/daycare.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "nuzlocke.h"
+ #include "pokemon.h"
+ #include "battle.h"
+ #include "daycare.h"
+@@ -252,7 +253,7 @@ static u16 TakeSelectedPokemonFromDaycare(struct DaycareMon *daycareMon)
+ 
+     if (GetMonData(&pokemon, MON_DATA_LEVEL) != MAX_LEVEL)
+     {
+-        experience = GetMonData(&pokemon, MON_DATA_EXP) + daycareMon->steps;
++        experience = GetMonData(&pokemon, MON_DATA_EXP) + NuzlockeExpGain(&pokemon, daycareMon->steps);
+         SetMonData(&pokemon, MON_DATA_EXP, &experience);
+         ApplyDaycareExperience(&pokemon);
+     }
+@@ -287,7 +288,7 @@ static u8 GetLevelAfterDaycareSteps(struct BoxPokemon *mon, u32 steps)
+ {
+     struct BoxPokemon tempMon = *mon;
+ 
+-    u32 experience = GetBoxMonData(mon, MON_DATA_EXP) + steps;
++    u32 experience = GetBoxMonData(mon, MON_DATA_EXP) + NuzlockeBoxExpGain(mon, steps);
+     SetBoxMonData(&tempMon, MON_DATA_EXP,  &experience);
+     return GetLevelFromBoxMonExp(&tempMon);
+ }
+diff --git a/src/field_poison.c b/src/field_poison.c
+index 1b8ae94..f837374 100644
+--- a/src/field_poison.c
++++ b/src/field_poison.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "nuzlocke.h"
+ #include "battle.h"
+ #include "battle_pike.h"
+ #include "battle_pyramid.h"
+@@ -102,6 +103,12 @@ static void Task_TryFieldPoisonWhiteOut(u8 taskId)
+         {
+             gSpecialVar_Result = FLDPSN_NO_WHITEOUT;
+         }
++        if (NuzlockeRemoveFainted())
++        {
++            DestroyTask(taskId);
++            NuzlockeRestart();
++            return;
++        }
+         ScriptContext_Enable();
+         DestroyTask(taskId);
+         break;
+diff --git a/src/load_save.c b/src/load_save.c
+index 117ba3e..35f421c 100644
+--- a/src/load_save.c
++++ b/src/load_save.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "nuzlocke.h"
+ #include "malloc.h"
+ #include "berry_powder.h"
+ #include "item.h"
+@@ -175,6 +176,9 @@ void LoadPlayerParty(void)
+ 
+     for (i = 0; i < PARTY_SIZE; i++)
+         gPlayerParty[i] = gSaveBlock1Ptr->playerParty[i];
++    // Remove holes left by permanent deaths in selected-party battles.
++    CompactPartySlots();
++    CalculatePlayerPartyCount();
+ }
+ 
+ void SaveObjectEvents(void)
+diff --git a/src/new_game.c b/src/new_game.c
+index 8074656..48f51b5 100644
+--- a/src/new_game.c
++++ b/src/new_game.c
+@@ -93,7 +93,7 @@ static void SetDefaultOptions(void)
+     gSaveBlock2Ptr->optionsTextSpeed = OPTIONS_TEXT_SPEED_MID;
+     gSaveBlock2Ptr->optionsWindowFrameType = 0;
+     gSaveBlock2Ptr->optionsSound = OPTIONS_SOUND_MONO;
+-    gSaveBlock2Ptr->optionsBattleStyle = OPTIONS_BATTLE_STYLE_SHIFT;
++    gSaveBlock2Ptr->optionsBattleStyle = OPTIONS_BATTLE_STYLE_SET;
+     gSaveBlock2Ptr->optionsBattleSceneOff = FALSE;
+     gSaveBlock2Ptr->regionMapZoom = FALSE;
+ }
+@@ -148,6 +148,7 @@ void ResetMenuAndMonGlobals(void)
+ 
+ void NewGameInitData(void)
+ {
++    gSaveBlock2Ptr->optionsBattleStyle = OPTIONS_BATTLE_STYLE_SET;
+     if (gSaveFileStatus == SAVE_STATUS_EMPTY || gSaveFileStatus == SAVE_STATUS_CORRUPT)
+         RtcReset();
+ 
+diff --git a/src/nuzlocke.c b/src/nuzlocke.c
+new file mode 100644
+index 0000000..a1af5e2
+--- /dev/null
++++ b/src/nuzlocke.c
+@@ -0,0 +1,233 @@
++#include "global.h"
++#include "nuzlocke.h"
++#include "battle.h"
++#include "event_data.h"
++#include "event_object_movement.h"
++#include "field_camera.h"
++#include "fieldmap.h"
++#include "main.h"
++#include "overworld.h"
++#include "palette.h"
++#include "pokemon.h"
++#include "pokemon_storage_system.h"
++#include "save.h"
++#include "script.h"
++#include "sprite.h"
++#include "task.h"
++#include "constants/event_bg.h"
++#include "constants/flags.h"
++
++extern const struct SpriteTemplate gFieldEffectObjectTemplate_SmallSparkle;
++extern const struct SpritePalette gSpritePalette_SmallSparkle;
++
++EWRAM_DATA static bool8 sSavePending = FALSE;
++
++u8 NuzlockeLevelCap(void)
++{
++    static const u16 badges[] = {FLAG_BADGE01_GET, FLAG_BADGE02_GET, FLAG_BADGE03_GET,
++        FLAG_BADGE04_GET, FLAG_BADGE05_GET, FLAG_BADGE06_GET, FLAG_BADGE07_GET, FLAG_BADGE08_GET};
++    static const u8 caps[] = {15, 19, 24, 29, 31, 33, 42, 46};
++    u32 i;
++    for (i = 0; i < ARRAY_COUNT(badges); i++)
++        if (!FlagGet(badges[i]))
++            return caps[i];
++    return MAX_LEVEL;
++}
++
++u32 NuzlockeBoxExpGain(struct BoxPokemon *mon, u32 gain)
++{
++    u16 species = GetBoxMonData(mon, MON_DATA_SPECIES);
++    u32 current = GetBoxMonData(mon, MON_DATA_EXP);
++    u32 limit = gExperienceTables[gSpeciesInfo[species].growthRate][NuzlockeLevelCap()];
++    if (current >= limit)
++        return 0;
++    if (gain > limit - current)
++        return limit - current;
++    return gain;
++}
++
++u32 NuzlockeExpGain(struct Pokemon *mon, u32 gain)
++{
++    return NuzlockeBoxExpGain(&mon->box, gain);
++}
++
++// One saved bit per named area: floors/entrances of the same cave share a chance.
++// This is reserved, unused save space; the layout of vanilla save blocks is unchanged.
++bool8 NuzlockeEncounterUsed(void)
++{
++    u8 area = GetCurrentRegionMapSectionId();
++    return (gSaveBlock1Ptr->unused_3598[area >> 3] & (1 << (area & 7))) != 0;
++}
++
++void NuzlockeUseEncounter(void)
++{
++    u8 area = GetCurrentRegionMapSectionId();
++    gSaveBlock1Ptr->unused_3598[area >> 3] |= 1 << (area & 7);
++    sSavePending = TRUE;
++}
++
++static void Task_SkipUsedEncounter(u8 taskId)
++{
++    gSpecialVar_Result = B_OUTCOME_RAN;
++    ScriptContext_Enable();
++    DestroyTask(taskId);
++}
++
++bool8 NuzlockeTryScriptedEncounter(void)
++{
++    if (NuzlockeEncounterUsed())
++    {
++        CreateTask(Task_SkipUsedEncounter, 1);
++        return FALSE;
++    }
++    NuzlockeUseEncounter();
++    return TRUE;
++}
++
++void NuzlockeRequestSave(void)
++{
++    sSavePending = TRUE;
++}
++
++bool8 NuzlockeRemoveFainted(void)
++{
++    u32 i;
++    bool8 living = FALSE;
++    for (i = 0; i < PARTY_SIZE; i++)
++    {
++        if (!GetMonData(&gPlayerParty[i], MON_DATA_SPECIES)
++            || GetMonData(&gPlayerParty[i], MON_DATA_IS_EGG))
++            continue;
++        if (GetMonData(&gPlayerParty[i], MON_DATA_HP) == 0)
++        {
++            ZeroMonData(&gPlayerParty[i]);
++            sSavePending = TRUE;
++        }
++        else
++            living = TRUE;
++    }
++    CompactPartySlots();
++    CalculatePlayerPartyCount();
++    return !living;
++}
++
++bool8 NuzlockeEndBattle(void)
++{
++    u32 i, j;
++    u32 count = (gBattleTypeFlags & BATTLE_TYPE_INGAME_PARTNER) ? 3 : PARTY_SIZE;
++    bool8 living = FALSE;
++    if (gBattleTypeFlags & (BATTLE_TYPE_LINK | BATTLE_TYPE_RECORDED | BATTLE_TYPE_WALLY_TUTORIAL))
++        return FALSE;
++    for (i = 0; i < count; i++)
++    {
++        struct Pokemon *mon = &gPlayerParty[i];
++        if (!GetMonData(mon, MON_DATA_SPECIES) || GetMonData(mon, MON_DATA_IS_EGG))
++            continue;
++        if (GetMonData(mon, MON_DATA_HP))
++            living = TRUE;
++        else
++        {
++            // Also remove the same individual from the pre-battle party backup.
++            // Partner/facility scripts must not restore a dead Pokemon later.
++            for (j = 0; j < PARTY_SIZE; j++)
++            {
++                struct Pokemon *saved = &gSaveBlock1Ptr->playerParty[j];
++                if (GetMonData(saved, MON_DATA_SPECIES)
++                    && GetMonData(saved, MON_DATA_PERSONALITY) == GetMonData(mon, MON_DATA_PERSONALITY)
++                    && GetMonData(saved, MON_DATA_OT_ID) == GetMonData(mon, MON_DATA_OT_ID))
++                    ZeroMonData(saved);
++            }
++            ZeroMonData(mon);
++        }
++    }
++    // Selected-party battle scripts still use original slot indexes on return.
++    if (!(gBattleTypeFlags & (BATTLE_TYPE_FRONTIER | BATTLE_TYPE_INGAME_PARTNER)))
++    {
++        CompactPartySlots();
++        CalculatePlayerPartyCount();
++    }
++    sSavePending = TRUE;
++    return !living;
++}
++
++void NuzlockeRestart(void)
++{
++    sSavePending = FALSE;
++    SetVBlankCallback(NULL);
++    SetHBlankCallback(NULL);
++    ClearSaveData();
++    Save_ResetSaveCounters();
++    gMain.inBattle = FALSE;
++    SetMainCallback1(NULL);
++    SetMainCallback2(CB2_NewGame);
++}
++
++static bool8 MarkerPosition(u16 eventId, s16 *x, s16 *y)
++{
++    const struct BgEvent *event = &gMapHeader.events->bgEvents[eventId];
++    if (event->kind != BG_EVENT_HIDDEN_ITEM
++        || FlagGet(event->bgUnion.hiddenItem.hiddenItemId + FLAG_HIDDEN_ITEMS_START))
++        return FALSE;
++    *x = event->x + MAP_OFFSET;
++    *y = event->y + MAP_OFFSET;
++    SetSpritePosToOffsetMapCoords(x, y, 8, 8);
++    return *x + gSpriteCoordOffsetX >= -8 && *x + gSpriteCoordOffsetX <= DISPLAY_WIDTH + 8
++        && *y + gSpriteCoordOffsetY >= -8 && *y + gSpriteCoordOffsetY <= DISPLAY_HEIGHT + 8;
++}
++
++static void SpriteCB_HiddenItemMarker(struct Sprite *sprite)
++{
++    s16 x, y;
++    if (sprite->data[1] != gSaveBlock1Ptr->location.mapGroup
++        || sprite->data[2] != gSaveBlock1Ptr->location.mapNum
++        || sprite->data[0] >= gMapHeader.events->bgEventCount
++        || !MarkerPosition(sprite->data[0], &x, &y))
++    {
++        DestroySprite(sprite);
++        return;
++    }
++    sprite->x = x;
++    sprite->y = y;
++    if (sprite->animEnded)
++        StartSpriteAnim(sprite, 0);
++}
++
++void NuzlockeFieldUpdate(void)
++{
++    u32 i, j;
++    s16 x, y;
++    u8 spriteId;
++    if (sSavePending && !gMain.inBattle && !gPaletteFade.active
++        && !ScriptContext_IsEnabled() && !ArePlayerFieldControlsLocked()
++        && gMain.callback2 == CB2_Overworld)
++    {
++        sSavePending = FALSE;
++        SaveMapView();
++        TrySavingData(SAVE_NORMAL);
++    }
++    if (gMapHeader.events == NULL)
++        return;
++    for (i = 0; i < gMapHeader.events->bgEventCount; i++)
++    {
++        if (!MarkerPosition(i, &x, &y))
++            continue;
++        for (j = 0; j < MAX_SPRITES; j++)
++            if (gSprites[j].inUse && gSprites[j].callback == SpriteCB_HiddenItemMarker
++                && gSprites[j].data[0] == i
++                && gSprites[j].data[1] == gSaveBlock1Ptr->location.mapGroup
++                && gSprites[j].data[2] == gSaveBlock1Ptr->location.mapNum)
++                break;
++        if (j != MAX_SPRITES)
++            continue;
++        LoadSpritePalette(&gSpritePalette_SmallSparkle);
++        spriteId = CreateSpriteAtEnd(&gFieldEffectObjectTemplate_SmallSparkle, x, y, 0);
++        if (spriteId == MAX_SPRITES)
++            break;
++        gSprites[spriteId].callback = SpriteCB_HiddenItemMarker;
++        gSprites[spriteId].data[0] = i;
++        gSprites[spriteId].data[1] = gSaveBlock1Ptr->location.mapGroup;
++        gSprites[spriteId].data[2] = gSaveBlock1Ptr->location.mapNum;
++        gSprites[spriteId].oam.priority = 0;
++        gSprites[spriteId].coordOffsetEnabled = TRUE;
++    }
++}
+diff --git a/src/option_menu.c b/src/option_menu.c
+index 1b1d1c1..2bf73f0 100644
+--- a/src/option_menu.c
++++ b/src/option_menu.c
+@@ -230,7 +230,7 @@ void CB2_InitOptionMenu(void)
+         gTasks[taskId].tMenuSelection = 0;
+         gTasks[taskId].tTextSpeed = gSaveBlock2Ptr->optionsTextSpeed;
+         gTasks[taskId].tBattleSceneOff = gSaveBlock2Ptr->optionsBattleSceneOff;
+-        gTasks[taskId].tBattleStyle = gSaveBlock2Ptr->optionsBattleStyle;
++        gTasks[taskId].tBattleStyle = OPTIONS_BATTLE_STYLE_SET;
+         gTasks[taskId].tSound = gSaveBlock2Ptr->optionsSound;
+         gTasks[taskId].tButtonMode = gSaveBlock2Ptr->optionsButtonMode;
+         gTasks[taskId].tWindowFrameType = gSaveBlock2Ptr->optionsWindowFrameType;
+@@ -466,13 +466,7 @@ static void BattleScene_DrawChoices(u8 selection)
+ 
+ static u8 BattleStyle_ProcessInput(u8 selection)
+ {
+-    if (JOY_NEW(DPAD_LEFT | DPAD_RIGHT))
+-    {
+-        selection ^= 1;
+-        sArrowPressed = TRUE;
+-    }
+-
+-    return selection;
++    return OPTIONS_BATTLE_STYLE_SET;
+ }
+ 
+ static void BattleStyle_DrawChoices(u8 selection)
+diff --git a/src/overworld.c b/src/overworld.c
+index 1d6b81c..1b65d96 100644
+--- a/src/overworld.c
++++ b/src/overworld.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "nuzlocke.h"
+ #include "overworld.h"
+ #include "battle_pyramid.h"
+ #include "battle_setup.h"
+@@ -1469,6 +1470,7 @@ static void OverworldBasic(void)
+     AnimateSprites();
+     CameraUpdate();
+     UpdateCameraPanning();
++    NuzlockeFieldUpdate();
+     BuildOamBuffer();
+     UpdatePaletteFade();
+     UpdateTilesetAnimations();
+@@ -1549,24 +1551,7 @@ void CB2_NewGame(void)
+ 
+ void CB2_WhiteOut(void)
+ {
+-    u8 state;
+-
+-    if (++gMain.state >= 120)
+-    {
+-        FieldClearVBlankHBlankCallbacks();
+-        StopMapMusic();
+-        ResetSafariZoneFlag_();
+-        DoWhiteOut();
+-        ResetInitialPlayerAvatarState();
+-        ScriptContext_Init();
+-        UnlockPlayerFieldControls();
+-        gFieldCallback = FieldCB_WarpExitFadeFromBlack;
+-        state = 0;
+-        DoMapLoadLoop(&state);
+-        SetFieldVBlankCallback();
+-        SetMainCallback1(CB1_Overworld);
+-        SetMainCallback2(CB2_Overworld);
+-    }
++    NuzlockeRestart();
+ }
+ 
+ void CB2_LoadMap(void)
+diff --git a/src/pokemon.c b/src/pokemon.c
+index 4b5c197..c5ae4d0 100644
+--- a/src/pokemon.c
++++ b/src/pokemon.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "nuzlocke.h"
+ #include "malloc.h"
+ #include "apprentice.h"
+ #include "battle.h"
+@@ -4771,6 +4772,10 @@ bool8 PokemonUseItemEffects(struct Pokemon *mon, u16 item, u8 partyIndex, u8 mov
+     s8 evChange;
+     u16 evCount;
+ 
++    // No item, including Revive or Rare Candy, can restore a fainted party member.
++    if (!usedByAI && GetMonData(mon, MON_DATA_HP) == 0)
++        return TRUE;
++
+     // Get item hold effect
+     heldItem = GetMonData(mon, MON_DATA_HELD_ITEM, NULL);
+     if (heldItem == ITEM_ENIGMA_BERRY)
+@@ -4918,7 +4923,7 @@ bool8 PokemonUseItemEffects(struct Pokemon *mon, u16 item, u8 partyIndex, u8 mov
+ 
+             // Rare Candy
+             if ((itemEffect[i] & ITEM3_LEVEL_UP)
+-             && GetMonData(mon, MON_DATA_LEVEL, NULL) != MAX_LEVEL)
++             && GetMonData(mon, MON_DATA_LEVEL, NULL) < NuzlockeLevelCap())
+             {
+                 dataUnsigned = gExperienceTables[gSpeciesInfo[GetMonData(mon, MON_DATA_SPECIES, NULL)].growthRate][GetMonData(mon, MON_DATA_LEVEL, NULL) + 1];
+                 SetMonData(mon, MON_DATA_EXP, &dataUnsigned);
+diff --git a/src/shop.c b/src/shop.c
+index c6e7881..d0f6067 100644
+--- a/src/shop.c
++++ b/src/shop.c
+@@ -377,7 +377,22 @@ static void SetShopMenuCallback(void (*callback)(void))
+ 
+ static void SetShopItemsForSale(const u16 *items)
+ {
++    static u16 balls[32];
+     u16 i = 0;
++    u16 count = 0;
++
++    if (sMartInfo.martType == MART_TYPE_NORMAL)
++    {
++        while (items[i] != ITEM_NONE)
++        {
++            if (GetItemPocket(items[i]) == POCKET_POKE_BALLS && count < ARRAY_COUNT(balls) - 1)
++                balls[count++] = items[i];
++            i++;
++        }
++        balls[count] = ITEM_NONE;
++        items = balls;
++        i = 0;
++    }
+ 
+     sMartInfo.itemList = items;
+     sMartInfo.itemCount = 0;
+diff --git a/src/wild_encounter.c b/src/wild_encounter.c
+index e50855a..e846a1a 100644
+--- a/src/wild_encounter.c
++++ b/src/wild_encounter.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "nuzlocke.h"
+ #include "battle_setup.h"
+ #include "battle_pike.h"
+ #include "battle_pyramid.h"
+@@ -554,7 +555,7 @@ bool8 StandardWildEncounter(u16 curMetatileBehavior, u16 prevMetatileBehavior)
+     u16 headerId;
+     struct Roamer *roamer;
+ 
+-    if (sWildEncountersDisabled == TRUE)
++    if (sWildEncountersDisabled == TRUE || NuzlockeEncounterUsed())
+         return FALSE;
+ 
+     headerId = GetCurrentMapWildMonHeaderId();
+@@ -669,6 +670,12 @@ void RockSmashWildEncounter(void)
+ {
+     u16 headerId = GetCurrentMapWildMonHeaderId();
+ 
++    if (NuzlockeEncounterUsed())
++    {
++        gSpecialVar_Result = FALSE;
++        return;
++    }
++
+     if (headerId != HEADER_NONE)
+     {
+         const struct WildPokemonInfo *wildPokemonInfo = gWildMonHeaders[headerId].rockSmashMonsInfo;
+@@ -699,6 +706,9 @@ bool8 SweetScentWildEncounter(void)
+     s16 x, y;
+     u16 headerId;
+ 
++    if (NuzlockeEncounterUsed())
++        return FALSE;
++
+     PlayerGetDestCoords(&x, &y);
+     headerId = GetCurrentMapWildMonHeaderId();
+     if (headerId == HEADER_NONE)
+@@ -771,6 +781,9 @@ bool8 DoesCurrentMapHaveFishingMons(void)
+ {
+     u16 headerId = GetCurrentMapWildMonHeaderId();
+ 
++    if (NuzlockeEncounterUsed())
++        return FALSE;
++
+     if (headerId != HEADER_NONE && gWildMonHeaders[headerId].fishingMonsInfo != NULL)
+         return TRUE;
+     else
