@@ -173,9 +173,14 @@ def call(name,*args):
     w32(control+36,stub_base+stub_symbols['noop']+1)
     w32(main,0)
     w32(main+4,stub_base+1)
-    for _ in range(120):
+    for _ in range(3600 if name in ('TrySavingData','NuzlockeRestart') else 120):
         run(1)
         if u32(control+4)==1: return u32(control)
+    screenshot('timeout-'+name+'.png')
+    details={key:hex(u32(symbols[key])) for key in ('gFlashMemoryPresent','gDamagedSaveSectors','gSaveAttemptStatus','gSaveCounter') if key in symbols}
+    details['callback2']=hex(u32(main+4))
+    details['control']=read(control,64).hex()
+    print('Timeout state:',json.dumps(details),flush=True)
     raise AssertionError('Emulator function timed out: '+name)
 
 checks=[]
