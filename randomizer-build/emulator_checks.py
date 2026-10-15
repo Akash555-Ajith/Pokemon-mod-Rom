@@ -363,4 +363,3 @@ elif variant==4:
 (output/'emulator-checks.json').write_text(json.dumps({'variant':variant,'passed':len(checks),'checks':checks},indent=2))
 print('All',len(checks),'checks passed for variant',variant,flush=True)
 core.retro_unload_game(); core.retro_deinit()
-

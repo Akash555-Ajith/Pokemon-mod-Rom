@@ -68,6 +68,8 @@ void RandomizerChangeSpecies(struct Pokemon *mon, u16 species, bool8 newMoves)
         }
         SetMonData(mon, MON_DATA_PP_BONUSES, &zero);
         GiveMonInitialMoveset(mon);
+        if (!GetMonData(mon, MON_DATA_MOVE1))
+            SetMonMoveSlot(mon, gLevelUpLearnsets[species][0] & LEVEL_UP_MOVE_ID, 0);
         for (i = 0; i < numHms; i++)
         {
             SetMonData(mon, MON_DATA_MOVE1 + i, &hms[i]);
@@ -104,6 +106,11 @@ void RandomizerEnemyParty(void)
         item = GetMonData(&gEnemyParty[i], MON_DATA_HELD_ITEM);
         CreateMon(&gEnemyParty[i], RandomizerSpecies(SPECIES_NONE), 1 + Random() % 100,
                   USE_RANDOM_IVS, FALSE, 0, OT_ID_RANDOM_NO_SHINY, 0);
+        if (!GetMonData(&gEnemyParty[i], MON_DATA_MOVE1))
+        {
+            u16 species = GetMonData(&gEnemyParty[i], MON_DATA_SPECIES);
+            SetMonMoveSlot(&gEnemyParty[i], gLevelUpLearnsets[species][0] & LEVEL_UP_MOVE_ID, 0);
+        }
         SetMonData(&gEnemyParty[i], MON_DATA_HELD_ITEM, &item);
     }
 }
