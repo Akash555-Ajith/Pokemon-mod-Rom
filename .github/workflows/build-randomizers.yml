@@ -1,0 +1,59 @@
+name: Build four separate Emerald randomizers
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'randomizer-build/**'
+      - '.github/workflows/build-randomizers.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build and emulator dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential binutils-arm-none-eabi libpng-dev libretro-mgba python3-pil
+      - name: Fetch pristine pinned source and compiler
+        run: |
+          git clone https://github.com/pret/pokeemerald.git /tmp/pokeemerald
+          git -C /tmp/pokeemerald checkout 731ad5bfd6e6f265508d0efcca0ba42f9dcf5881
+          git clone https://github.com/pret/agbcc.git /tmp/agbcc
+          git -C /tmp/agbcc checkout da598c1d918402c42c0c0d7128ba14567f3175e9
+      - name: Build original compiler
+        working-directory: /tmp/agbcc
+        run: ./build.sh && ./install.sh ../pokeemerald
+      - name: Verify pristine ROM matches original Emerald
+        working-directory: /tmp/pokeemerald
+        run: make -j2 compare
+      - name: Apply exactly one mod
+        run: python3 randomizer-build/apply.py /tmp/pokeemerald ${{ matrix.variant }}
+      - name: Build custom ROM
+        working-directory: /tmp/pokeemerald
+        run: make -j2
+      - name: Test compiled ROM in mGBA
+        run: python3 -u randomizer-build/emulator_checks.py /tmp/pokeemerald emulator-results ${{ matrix.variant }}
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Randomizer-${{ matrix.variant }}-tests
+          path: emulator-results/
+      - name: Package ROM
+        run: |
+          mkdir -p output
+          cp /tmp/pokeemerald/pokeemerald.gba "output/Pokemon Emerald - Randomizer ${{ matrix.variant }}.gba"
+          cp /tmp/pokeemerald/pokeemerald.elf output/
+          cp /tmp/pokeemerald/randomizer-manifest.json output/
+          cp randomizer-build/README.md output/
+          sha256sum output/*.gba > output/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Emerald-Randomizer-${{ matrix.variant }}
+          path: output/
+          retention-days: 30
