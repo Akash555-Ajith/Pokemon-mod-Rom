@@ -1,0 +1,41 @@
+name: Test compiled Emerald randomizers
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'randomizer-build/emulator_checks.py'
+      - '.github/workflows/test-randomizers.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libretro-mgba python3-pil binutils-arm-none-eabi
+      - uses: actions/download-artifact@v4
+        with:
+          name: Emerald-Randomizer-${{ matrix.variant }}
+          run-id: 38695161446
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: built-rom
+      - name: Prepare pinned source definitions
+        run: |
+          git clone https://github.com/pret/pokeemerald.git /tmp/pokeemerald
+          git -C /tmp/pokeemerald checkout 731ad5bfd6e6f265508d0efcca0ba42f9dcf5881
+          python3 randomizer-build/apply.py /tmp/pokeemerald ${{ matrix.variant }}
+          cp built-rom/*.elf /tmp/pokeemerald/pokeemerald.elf
+          cp built-rom/*.gba /tmp/pokeemerald/pokeemerald.gba
+      - name: Test compiled ROM in mGBA
+        run: python3 -u randomizer-build/emulator_checks.py /tmp/pokeemerald emulator-results ${{ matrix.variant }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Randomizer-${{ matrix.variant }}-tests
+          path: emulator-results/

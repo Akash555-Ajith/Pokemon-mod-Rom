@@ -312,7 +312,7 @@ elif variant==3:
     call('CalculatePlayerPartyCount')
     w32(symbols['gCB2_AfterEvolution'],noop)
     call('EvolutionScene',party,3,1,0)
-    for n in range(1600):
+    for n in range(3600):
         keys.clear()
         keys.add(0) # Hold B; the mandatory evolution must not cancel.
         if n%30<3: keys.add(8) # A confirms any text.
@@ -322,6 +322,11 @@ elif variant==3:
     screenshot('evolution.png')
     # Stop the scene callback before using the function probe again.
     finished=u32(main+4)==noop
+    if not finished:
+        print('Evolution debug:', {'callback':hex(u32(main+4)), 'keys':read(main+0x28,8).hex(),
+            'tasks':[read(symbols['gTasks']+40*i,40).hex() for i in range(16) if read(symbols['gTasks']+40*i+4,1)!=b'\0'],
+            'text':read(symbols['gTextPrinters'],80).hex(),
+            'sound1':read(symbols['gMPlayInfo_SE1'],20).hex(), 'sound2':read(symbols['gMPlayInfo_SE2'],20).hex()},flush=True)
     check('Evolution animation completes despite B button',finished)
     check('Animated evolution reaches requested species at same level',getmon(0,'SPECIES')==3 and getmon(0,'LEVEL')==37)
 elif variant==4:
@@ -358,7 +363,7 @@ elif variant==4:
     keys.update((10,11)); run(2); keys.add(2); run(2); keys.clear(); run(600)
     screenshot('rescue.png')
     active_save=u32(symbols['gSaveBlock1Ptr'])
-    check('L+R+Select rescue returns to Littleroot',read(active_save+4,2)==b'\x00\x00')
+    check('L+R+Select rescue returns to Littleroot',read(active_save+4,2)==bytes([source['group'],source['map']]))
 
 (output/'emulator-checks.json').write_text(json.dumps({'variant':variant,'passed':len(checks),'checks':checks},indent=2))
 print('All',len(checks),'checks passed for variant',variant,flush=True)

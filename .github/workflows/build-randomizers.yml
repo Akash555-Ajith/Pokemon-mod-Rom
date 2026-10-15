@@ -5,7 +5,7 @@ on:
     paths:
       - 'randomizer-build/*.c'
       - 'randomizer-build/*.h'
-      - 'randomizer-build/*.py'
+      - 'randomizer-build/apply.py'
       - '.github/workflows/build-randomizers.yml'
 permissions:
   contents: read
