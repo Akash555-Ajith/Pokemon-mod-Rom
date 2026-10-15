@@ -3,7 +3,9 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'randomizer-build/**'
+      - 'randomizer-build/*.c'
+      - 'randomizer-build/*.h'
+      - 'randomizer-build/*.py'
       - '.github/workflows/build-randomizers.yml'
 permissions:
   contents: read
@@ -34,6 +36,7 @@ jobs:
       - name: Apply exactly one mod
         run: python3 randomizer-build/apply.py /tmp/pokeemerald ${{ matrix.variant }}
       - name: Build custom ROM
+        id: compile
         working-directory: /tmp/pokeemerald
         run: make -j2
       - name: Test compiled ROM in mGBA
@@ -45,6 +48,7 @@ jobs:
           name: Randomizer-${{ matrix.variant }}-tests
           path: emulator-results/
       - name: Package ROM
+        if: ${{ always() && steps.compile.outcome == 'success' }}
         run: |
           mkdir -p output
           cp /tmp/pokeemerald/pokeemerald.gba "output/Pokemon Emerald - Randomizer ${{ matrix.variant }}.gba"
@@ -53,6 +57,7 @@ jobs:
           cp randomizer-build/README.md output/
           sha256sum output/*.gba > output/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
+        if: ${{ always() && steps.compile.outcome == 'success' }}
         with:
           name: Emerald-Randomizer-${{ matrix.variant }}
           path: output/

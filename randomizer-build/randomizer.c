@@ -1,6 +1,7 @@
 #include "global.h"
 #include "single_randomizer.h"
 #include "battle.h"
+#include "data.h"
 #include "event_data.h"
 #include "field_screen_effect.h"
 #include "main.h"
