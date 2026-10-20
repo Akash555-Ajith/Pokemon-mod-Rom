@@ -4,6 +4,8 @@
 #include "data.h"
 #include "string_util.h"
 
+extern const struct Evolution gEvolutionTable[][EVOS_PER_MON];
+
 EWRAM_DATA static u8 sLostLevels[PARTY_SIZE] = {0};
 EWRAM_DATA static u8 sChangedMask = 0;
 
