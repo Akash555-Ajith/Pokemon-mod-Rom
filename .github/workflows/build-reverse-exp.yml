@@ -1,0 +1,57 @@
+name: Build Emerald Reverse EXP
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'reverse-exp-build/*.c'
+      - 'reverse-exp-build/*.h'
+      - 'reverse-exp-build/*.py'
+      - '.github/workflows/build-reverse-exp.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y build-essential binutils-arm-none-eabi libpng-dev libretro-mgba python3-pil
+      - name: Fetch pinned pristine source and compiler
+        run: |
+          git clone https://github.com/pret/pokeemerald.git /tmp/pokeemerald
+          git -C /tmp/pokeemerald checkout 731ad5bfd6e6f265508d0efcca0ba42f9dcf5881
+          git clone https://github.com/pret/agbcc.git /tmp/agbcc
+          git -C /tmp/agbcc checkout da598c1d918402c42c0c0d7128ba14567f3175e9
+      - name: Build compiler
+        working-directory: /tmp/agbcc
+        run: ./build.sh && ./install.sh ../pokeemerald
+      - name: Verify unmodified Emerald
+        working-directory: /tmp/pokeemerald
+        run: make -j2 compare
+      - name: Apply reverse EXP
+        run: python3 reverse-exp-build/apply.py /tmp/pokeemerald
+      - name: Build custom ROM
+        id: compile
+        working-directory: /tmp/pokeemerald
+        run: make -j2
+      - name: Test compiled ROM in mGBA
+        run: python3 -u reverse-exp-build/emulator_checks.py /tmp/pokeemerald emulator-results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Reverse-EXP-tests
+          path: emulator-results/
+      - name: Package ROM
+        if: ${{ always() && steps.compile.outcome == 'success' }}
+        run: |
+          mkdir -p output
+          cp /tmp/pokeemerald/pokeemerald.gba "output/Pokemon Emerald - Reverse EXP.gba"
+          cp /tmp/pokeemerald/pokeemerald.elf output/
+          cp reverse-exp-build/README.md output/
+          sha256sum output/*.gba > output/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && steps.compile.outcome == 'success' }}
+        with:
+          name: Emerald-Reverse-EXP
+          path: output/
+          retention-days: 30
