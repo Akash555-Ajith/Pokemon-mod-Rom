@@ -11,4 +11,7 @@ A separate ROM based on original English Emerald. Starters remain level 5; enemy
 
 Open this ROM under its own filename and start a new game. Keep a separate save from your other Emerald ROMs.
 
-Build and validation results will be added after verification. This mod deliberately makes ordinary battles reduce your team's strength; no enemy scaling or other balancing changes were added.
+The ROM compiled after the pristine source reproduced the exact original Emerald ROM. It passed 32 targeted checks in mGBA, covering exact EXP loss, original bonuses and Exp. Share distribution, safe HP, level limits, de-evolution and retained vanilla item behavior. This is not a full story playthrough or a Visual Boy Advance-specific test. This mod deliberately makes ordinary battles reduce your team's strength; no enemy scaling or other balancing changes were added.
+
+
+Build and test results: https://github.com/Akash555-Ajith/Pokemon-mod-Rom/actions/runs/39427778308
