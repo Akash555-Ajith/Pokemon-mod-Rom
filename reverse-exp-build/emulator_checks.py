@@ -292,7 +292,45 @@ setmon(0,'HP',0)
 check('Normal revival remains available',call('ExecuteTableBasedItemEffect',party,items['ITEM_REVIVE'],0,0)==0 and getmon(0,'HP')>0)
 check('Original battle-style options remain available',call('BattleStyle_ProcessInput',0)==0)
 
+# Run the original battle script's EXP calculation, including its recipient split.
+call('AllocateBattleResources')
+battle_struct=u32(symbols['gBattleStruct'])
+assert 0x02000000<=battle_struct<0x02040000
+for slot in range(6): call('ZeroMonData',party+slot*100)
+create(0,30); create(1,30)
+write(symbols['gBattlerTarget'],b'\x01')
+write(symbols['gBattlerPositions'],bytes([0,1,2,3]))
+write(symbols['gBattlersCount'],b'\x02')
+write(symbols['gAbsentBattlerFlags'],b'\0')
+write(symbols['gBattlerPartyIndexes'],bytes([0,0,1,1]))
+write(symbols['gSentPokesToOpponent'],b'\x01\0')
+write(scratch+32,bytes([0x23,0])) # GETEXP for BS_TARGET
+w32(symbols['gBattlescriptCurrInstr'],scratch+32)
+write(symbols['gBattleMons']+88,struct.pack('<H',1)) # enemy Bulbasaur
+write(symbols['gBattleMons']+88+0x2a,b'\x0a') # level 10, base award 64*10//7 = 91
+
+def calculate_award(flags):
+    w32(symbols['gBattleTypeFlags'],flags)
+    w32(symbols['gBattleControllerExecFlags'],0)
+    write(symbols['gBattleScripting']+28,b'\x01')
+    # Avoid replaying victory music during this isolated wild award calculation.
+    write(battle_struct+18,b'\x01')
+    call('Cmd_getexp')
+    return u32(symbols['gBattleMoveDamage'])
+
+check('Wild EXP loss uses the original award amount',calculate_award(0)==91)
+check('Trainer EXP loss keeps the original 1.5x bonus',calculate_award(8)==136)
+setmon(0,'HELD_ITEM',items['ITEM_LUCKY_EGG'])
+check('Lucky Egg multiplier is included in the loss',calculate_award(8)==204)
+setmon(0,'HELD_ITEM',0)
+setmon(1,'HELD_ITEM',items['ITEM_EXP_SHARE'])
+check('Exp Share splits the loss using the original formula',calculate_award(8)==67)
+w32(symbols['gBattleControllerExecFlags'],0)
+write(battle_struct+16,b'\x01')
+write(symbols['gBattleScripting']+28,b'\x02')
+call('Cmd_getexp')
+check('The non-participating Exp Share holder also receives its loss',u32(symbols['gBattleMoveDamage'])==67)
+
 (output/'emulator-checks.json').write_text(json.dumps({'passed':len(checks),'checks':checks},indent=2))
 print('All',len(checks),'reverse-EXP checks passed.',flush=True)
 core.retro_unload_game(); core.retro_deinit()
-
