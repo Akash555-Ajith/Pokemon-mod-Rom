@@ -1,6 +1,6 @@
 # Pokemon Emerald Mod ROMs
 
-Seven separate English Pokemon Emerald variants. Choose one ROM to play: the changes are **not combined** into a single game.
+Eight separate English Pokemon Emerald variants. Choose one ROM to play: the changes are **not combined** into a single game.
 
 ## Choose a game
 
@@ -15,6 +15,7 @@ All downloads are in [pokemon emerald mod](pokemon%20emerald%20mod/). Open a fil
 | [Party Shuffle After Trainers](pokemon%20emerald%20mod/Pokemon%20Emerald%20-%20Party%20Shuffle%20After%20Trainers.gba) | After an NPC trainer battle, each occupied non-Egg party slot becomes a different random species. Levels, EXP progress, items, nicknames, status, and fainted state are preserved; moves are adjusted, keeping existing HM moves. PC Pokemon are unaffected. |
 | [Random Evolution Every Level](pokemon%20emerald%20mod/Pokemon%20Emerald%20-%20Random%20Evolution%20Every%20Level.gba) | Each gained level triggers a compulsory random evolution, including Rare Candies and daycare gains. Multiple levels give multiple changes. Everstones and B cannot cancel this rule. Moves, items, nicknames, and level progress are preserved. |
 | [Consistent Map Randomizer](pokemon%20emerald%20mod/Pokemon%20Emerald%20-%20Consistent%20Map%20Randomizer.gba) | Doors, stairs, and cave entrances lead to shuffled destinations after you receive your starter. Each entrance keeps its destination across saves, based on the saved trainer ID. |
+| [Reverse EXP](pokemon%20emerald%20mod/Pokemon%20Emerald%20-%20Reverse%20EXP.gba) | Battle EXP is subtracted instead of added, lowering levels down to level 1. Evolved Pokemon can de-evolve after battle as levels drop. Starters begin at the normal level 5; original trainer teams and levels remain unchanged. |
 
 The two fixed trainer-table mods do not cover separately generated special teams such as Battle Frontier parties. Automatically selected moves can differ when a species or level changes.
 
@@ -49,15 +50,31 @@ Read the [complete Nuzlocke guide](nuzlocke-build/README.md) before playing. Emu
 
 If stuck while freely moving in the overworld, **hold L + R and press Select** to return outside in Littleroot. Use the keys mapped to those GBA buttons in your emulator.
 
+### Reverse EXP
+
+- Each defeated enemy subtracts the EXP your eligible Pokemon would normally receive, including wild battles. Original participation, Exp. Share and EXP bonuses apply.
+- EXP cannot fall below level 1. Level-100 Pokemon can also lose EXP.
+- After battle, evolved Pokemon revert when their level falls below their original level-evolution threshold. Stone, trade, friendship and beauty evolutions can reverse one stage per lost level. No level loss means no de-evolution.
+- De-evolution retains moves, held items, custom nicknames and remaining EXP. It happens without an evolution animation.
+- Rare Candies, daycare gains, EVs, money and story rewards retain their normal behavior. There is no enemy scaling or other balancing change, and none of the earlier mods are included.
+
+Read the [complete Reverse EXP guide](reverse-exp-build/README.md) for details. Start a new game with a separate save.
+
 ## Verification and limitations
 
-On **2026-10-15**, all seven repository ROMs were checked for:
+On **2026-10-15**, the original seven repository ROMs (excluding the later Reverse EXP addition) were checked for:
 
 - Exact size of **16,777,216 bytes (16 MiB)** each.
 - Valid GBA header complement checksum and fixed header byte.
 - Hash agreement with the existing build/verification records: SHA-256 for the four randomizers and Nuzlocke; SHA-1 for the two fixed trainer mods.
 
-See [verification.json](pokemon%20emerald%20mod/verification.json) for individual results and [SHA256SUMS.txt](pokemon%20emerald%20mod/SHA256SUMS.txt) for download integrity checks. A valid header and matching hash confirm file consistency, not a complete gameplay test.
+See [verification.json](pokemon%20emerald%20mod/verification.json) for those seven results and [SHA256SUMS.txt](pokemon%20emerald%20mod/SHA256SUMS.txt) for their download integrity checks. A valid header and matching hash confirm file consistency, not a complete gameplay test.
+
+The Reverse EXP ROM is also **16,777,216 bytes (16 MiB)**. Its SHA-256 was verified during upload:
+
+```text
+b7d4a0273d38831a1459e1cf348ce32544dd15dad563f178d0b6c8064d76204d  Pokemon Emerald - Reverse EXP.gba
+```
 
 Previously recorded validation:
 
@@ -66,6 +83,7 @@ Previously recorded validation:
 | Level 100 / Legendary Trainers | Trainer-table checks covering all 854 records and 1,825 Pokemon. Not emulator play-tested in the existing records. |
 | Nuzlocke | 36 targeted automated mGBA checks, documented in the [build guide](nuzlocke-build/README.md). |
 | Four randomizers | 53 targeted automated mGBA checks, including evolution animation, map loading, and the Littleroot rescue, documented in the [build guide](randomizer-build/README.md). |
+| Reverse EXP | 32 targeted automated mGBA checks covering EXP loss, bonuses, Exp. Share, safe HP, level limits, de-evolution and vanilla item behavior. See the [build guide](reverse-exp-build/README.md) and [successful build](https://github.com/Akash555-Ajith/Pokemon-mod-Rom/actions/runs/39427778308). |
 
 Those earlier emulator suites were **not rerun for this upload**. Full story playthroughs and VisualBoyAdvance-specific compatibility are not established by these checks.
 
@@ -79,7 +97,8 @@ Compare the result with the matching filename in `SHA256SUMS.txt` (hexadecimal l
 
 ## Repository layout
 
-- `pokemon emerald mod/`: seven playable ROM variants, checksums, and the latest file verification results.
+- `pokemon emerald mod/`: eight playable ROM variants, plus checksums and file verification results for the original seven.
+- `reverse-exp-build/`: Reverse EXP source, patch application script, emulator checks, and detailed guide.
 - `randomizer-build/`: randomizer source, patch application script, emulator checks, and detailed guide.
 - `nuzlocke-build/`: Nuzlocke patch, input verification, emulator checks, and detailed guide.
 - `.github/workflows/`: build and test workflows.
